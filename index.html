@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>EAGLE COLLECTIONS — Retail Studio</title>
 <style>
@@ -7,7 +6,9 @@
 @media(max-width:900px){.sidebar{width:190px}.main{margin-left:190px;padding:20px}.stats{grid-template-columns:repeat(2,1fr)}.products,.posproducts{grid-template-columns:repeat(2,1fr)}.layout2{grid-template-columns:1fr}}
 @media(max-width:620px){.sidebar{position:static;width:auto;height:auto;padding:12px}.brand{margin-bottom:10px}.nav{display:flex;overflow:auto}.navlabel,.userbox{display:none}.nav button{white-space:nowrap;width:auto}.main{margin:0;padding:15px}.formgrid{grid-template-columns:1fr 1fr}.stats{grid-template-columns:1fr 1fr}.posproducts{grid-template-columns:1fr 1fr}.pagehead{align-items:flex-start;gap:10px}.pagehead h1{font-size:22px}.billrow{grid-template-columns:1fr auto}.billrow>*:nth-child(2),.billrow>*:nth-child(3){font-size:12px}}
 </style></head><body>
-<div id="login" class="login"><div class="loginbox"><div class="brand" style="margin:0 0 18px">EAGLE COLLECTIONS<span>RETAIL MANAGEMENT</span></div><section id="signinPanel"><h1>Welcome back</h1><p class="muted">Sign in to your store workspace.</p><div class="field"><label>Email</label><input id="email" type="email" autocomplete="username" placeholder="Your registered email"></div><div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password" placeholder="Password"></div><button style="width:100%" onclick="login()">Sign in</button><p style="margin:14px 0 0"><a href="#" onclick="sendRecovery();return false">Forgot password?</a></p><p id="loginerr" class="small" style="color:var(--red)"></p></section><section id="resetPanel" class="hidden"><h1>Set a new password</h1><p class="muted">Enter your new password below.</p><div class="field"><label>New password</label><input id="newPassword" type="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters"></div><div class="field"><label>Confirm new password</label><input id="confirmPassword" type="password" autocomplete="new-password" minlength="8" placeholder="Enter it again"></div><button style="width:100%" onclick="saveNewPassword()">Update password</button><p id="resetmsg" class="small"></p></section></div></div>
+<div id="login" class="login"><div class="loginbox"><div class="brand" style="margin:0 0 18px">EAGLE COLLECTIONS<span>RETAIL MANAGEMENT</span></div>
+<section id="workspaceChooser"><h1>Choose your workspace</h1><p class="muted">Select how you want to sign in.</p><div class="field"><button style="width:100%" onclick="chooseWorkspace('admin')">ADMIN LOGIN</button></div><div class="field"><button class="secondary" style="width:100%" onclick="chooseWorkspace('seller')">SELLER / BILLING LOGIN</button></div></section>
+<section id="signinPanel" class="hidden"><h1 id="signinTitle">Sign in</h1><p class="muted" id="signinDescription">Sign in to your store workspace.</p><p class="small"><a href="#" onclick="backToWorkspaceChooser();return false">← Change workspace</a></p><h1>Welcome back</h1><p class="muted">Sign in to your store workspace.</p><div class="field"><label>Email</label><input id="email" type="email" autocomplete="username" placeholder="Your registered email"></div><div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password" placeholder="Password"></div><button style="width:100%" onclick="login()">Sign in</button><p style="margin:14px 0 0"><a href="#" onclick="sendRecovery();return false">Forgot password?</a></p><p id="loginerr" class="small" style="color:var(--red)"></p></section><section id="resetPanel" class="hidden"><h1>Set a new password</h1><p class="muted">Enter your new password below.</p><div class="field"><label>New password</label><input id="newPassword" type="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters"></div><div class="field"><label>Confirm new password</label><input id="confirmPassword" type="password" autocomplete="new-password" minlength="8" placeholder="Enter it again"></div><button style="width:100%" onclick="saveNewPassword()">Update password</button><p id="resetmsg" class="small"></p></section></div></div>
 <div id="app" class="app"><aside class="sidebar"><div class="brand">EAGLE COLLECTIONS<span>RETAIL MANAGEMENT</span></div><div class="navlabel">WORKSPACE</div><nav id="nav" class="nav"></nav><div class="userbox"><div><b id="userlabel">Shop Admin</b><div class="small muted" id="rolelabel">Super Admin</div></div><button class="secondary" onclick="logout()">Logout</button></div></aside><main class="main"><div class="top"><div class="crumb">Store / <span id="crumb">Overview</span></div><div class="small muted">● All systems operational　 <span id="today"></span></div></div><div id="content"></div></main></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -28,15 +29,64 @@ const seedProducts=[
 const read=(k,d)=>{try{return JSON.parse(localStorage.getItem('ec_'+k))??d}catch{return d}};
 const save=(k,v)=>localStorage.setItem('ec_'+k,JSON.stringify(v));
 let products=read('products',seedProducts),categories=read('categories',DEMO_CATS),customers=read('customers',[]),invoices=read('invoices',[]),staff=read('staff',[{name:'Shop Admin',email:'admin@eaglecollections.local',role:'Super Admin',active:true},{name:'Billing User',email:'billing@eaglecollections.local',role:'Billing User',active:true}]),current=null,page='Overview',cart=[],categoryFilter='All Items',gstMode='with',payMode='Cash';
+let workspaceMode = new URLSearchParams(location.search).get('workspace');
 const money=n=>'₹'+Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function showResetPanel(show){document.getElementById('signinPanel').classList.toggle('hidden',show);document.getElementById('resetPanel').classList.toggle('hidden',!show)}
-function showAppForUser(email,role){current={email,role};document.getElementById('login').style.display='none';document.getElementById('app').style.display='block';document.getElementById('userlabel').textContent=email;document.getElementById('rolelabel').textContent=role;renderNav();go('Overview')}
-async function login(){let e=document.getElementById('email').value.trim().toLowerCase(),p=document.getElementById('password').value,err=document.getElementById('loginerr');err.textContent='';if(!e||!p){err.textContent='Enter your email and password.';return}const {data,error}=await supabaseClient.auth.signInWithPassword({email:e,password:p});if(error){err.textContent=error.message;return}let role=e==='ahmedmazhar296@gmail.com'?'Super Admin':'Billing User';try{const {data:profile}=await supabaseClient.from('profiles').select('role,full_name').eq('id',data.user.id).maybeSingle();if(profile?.role)role=['super_admin','Super Admin','admin'].includes(profile.role)?'Super Admin':'Billing User'}catch(e){}showAppForUser(e,role)}
+function applyWorkspaceMode(mode,updateUrl=true){
+  workspaceMode=mode;
+  if(updateUrl){const u=new URL(location.href);u.searchParams.set('workspace',mode);history.replaceState({},'',u.pathname+u.search)}
+  document.getElementById('workspaceChooser').classList.add('hidden');
+  document.getElementById('signinPanel').classList.remove('hidden');
+  document.getElementById('signinTitle').textContent=mode==='admin'?'Admin sign in':'Seller / Billing sign in';
+  document.getElementById('signinDescription').textContent=mode==='admin'?'Sign in to the EAGLE COLLECTIONS admin workspace.':'Sign in to open billing and sales.';
+}
+function chooseWorkspace(mode){applyWorkspaceMode(mode,true)}
+function backToWorkspaceChooser(){
+  workspaceMode=null;const u=new URL(location.href);u.searchParams.delete('workspace');history.replaceState({},'',u.pathname+u.search);
+  document.getElementById('signinPanel').classList.add('hidden');document.getElementById('workspaceChooser').classList.remove('hidden');
+}
+function profileRole(profile){
+  if(!profile||profile.active===false)return null;
+  if(['super_admin','Super Admin','admin'].includes(profile.role))return 'Super Admin';
+  if(['billing_user','Billing User','seller'].includes(profile.role))return 'Billing User';
+  return null;
+}
+function workspaceAllows(role){
+  return workspaceMode==='admin'?role==='Super Admin':workspaceMode==='seller'?role==='Billing User':true;
+}
+function showAppForUser(email,role){current={email,role};document.getElementById('login').style.display='none';document.getElementById('app').style.display='block';document.getElementById('userlabel').textContent=email;document.getElementById('rolelabel').textContent=role;renderNav();go(role==='Billing User'?'POS':'Overview')}
+async function login(){
+  let e=document.getElementById('email').value.trim().toLowerCase(),p=document.getElementById('password').value,err=document.getElementById('loginerr');err.textContent='';
+  if(!e||!p){err.textContent='Enter your email and password.';return}
+  const {data,error}=await supabaseClient.auth.signInWithPassword({email:e,password:p});
+  if(error){err.textContent=error.message;return}
+  const {data:profile,error:profileError}=await supabaseClient.from('profiles').select('role,full_name,active').eq('id',data.user.id).maybeSingle();
+  if(profileError||!profile){err.textContent='Your staff profile was not found. Ask the store admin to check your account.';await supabaseClient.auth.signOut();return}
+  const role=profileRole(profile);
+  if(!role){err.textContent='This account is inactive or has no valid role.';await supabaseClient.auth.signOut();return}
+  if(!workspaceAllows(role)){err.textContent=role==='Super Admin'?'This is an Admin account. Choose ADMIN LOGIN.':'This is a Seller account. Choose SELLER / BILLING LOGIN.';await supabaseClient.auth.signOut();return}
+  showAppForUser(e,role);
+}
 async function sendRecovery(){let e=document.getElementById('email').value.trim().toLowerCase(),err=document.getElementById('loginerr');err.textContent='';if(!e){err.textContent='Enter your registered email first.';return}const redirect=location.origin+location.pathname;const {error}=await supabaseClient.auth.resetPasswordForEmail(e,{redirectTo:redirect});err.textContent=error?'Could not send recovery email: '+error.message:'Password reset email sent. Open it on this device and choose a new password.'}
-async function saveNewPassword(){let a=document.getElementById('newPassword').value,b=document.getElementById('confirmPassword').value,m=document.getElementById('resetmsg');if(a.length<8){m.textContent='Use at least 8 characters.';return}if(a!==b){m.textContent='Passwords do not match.';return}const {error}=await supabaseClient.auth.updateUser({password:a});if(error){m.textContent='Could not update password: '+error.message;return}m.textContent='Password updated. You can now sign in with your new password.';document.getElementById('password').value='';showResetPanel(false);history.replaceState({},document.title,location.pathname)}
+async function saveNewPassword(){let a=document.getElementById('newPassword').value,b=document.getElementById('confirmPassword').value,m=document.getElementById('resetmsg');if(a.length<8){m.textContent='Use at least 8 characters.';return}if(a!==b){m.textContent='Passwords do not match.';return}const {error}=await supabaseClient.auth.updateUser({password:a});if(error){m.textContent='Could not update password: '+error.message;return}m.textContent='Password updated. You can now sign in with your new password.';document.getElementById('password').value='';showResetPanel(false);const u=new URL(location.href);if(workspaceMode)u.searchParams.set('workspace',workspaceMode);history.replaceState({},document.title,u.pathname+u.search)}
 supabaseClient.auth.onAuthStateChange((event,session)=>{if(event==='PASSWORD_RECOVERY'){showResetPanel(true);document.getElementById('login').style.display='grid';document.getElementById('app').style.display='none'}});
-(async()=>{if(location.hash.includes('type=recovery')||location.search.includes('type=recovery')){showResetPanel(true);document.getElementById('login').style.display='grid';document.getElementById('app').style.display='none';return}const {data}=await supabaseClient.auth.getSession();if(data.session){const e=data.session.user.email||'',role=e==='ahmedmazhar296@gmail.com'?'Super Admin':'Billing User';showAppForUser(e,role)}})();
+(async()=>{
+  if(location.hash.includes('type=recovery')||location.search.includes('type=recovery')){showResetPanel(true);document.getElementById('login').style.display='grid';document.getElementById('app').style.display='none';return}
+  if(workspaceMode==='admin'||workspaceMode==='seller')applyWorkspaceMode(workspaceMode,false);
+  else {document.getElementById('workspaceChooser').classList.remove('hidden');document.getElementById('signinPanel').classList.add('hidden')}
+  const {data}=await supabaseClient.auth.getSession();
+  if(data.session){
+    const e=data.session.user.email||'';
+    const {data:profile}=await supabaseClient.from('profiles').select('role,full_name,active').eq('id',data.session.user.id).maybeSingle();
+    const role=profileRole(profile);
+    if(role){
+      if(!workspaceMode){workspaceMode=role==='Super Admin'?'admin':'seller';const u=new URL(location.href);u.searchParams.set('workspace',workspaceMode);history.replaceState({},'',u.pathname+u.search)}
+      if(workspaceAllows(role)){showAppForUser(e,role);return}
+    }
+    await supabaseClient.auth.signOut();
+  }
+})();
 async function logout(){await supabaseClient.auth.signOut();current=null;cart=[];document.getElementById('app').style.display='none';document.getElementById('login').style.display='grid';showResetPanel(false)}
 function renderNav(){let admin=current.role==='Super Admin';let items=[['Overview','▦'],['POS','＋'],['Products','▣'],['Categories','▤'],['Invoices','▤'],['Inventory','▥'],['Customers','♙'],['Reports','◷'],['Staff Accounts','♟'],['Roles & Permissions','⚙']];if(!admin)items=items.filter(x=>['Overview','POS','Invoices','Inventory','Customers','Reports'].includes(x[0]));document.getElementById('nav').innerHTML=items.map(([n,i])=>`<button class="${page===n?'active':''}" onclick="go('${n}')"><span>${i}</span>${n}</button>`).join('')}
 function go(p){page=p;document.getElementById('crumb').textContent=p;renderNav();let c=document.getElementById('content');({Overview:overview,POS:pos,Products:productsPage,Categories:categoriesPage,Invoices:invoicesPage,Inventory:inventoryPage,Customers:customersPage,Reports:reportsPage,'Staff Accounts':staffPage,'Roles & Permissions':rolesPage}[p]||overview)(c)}
